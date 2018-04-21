@@ -1,0 +1,79 @@
+@font-face {
+  font-family: lcwFont;
+  src: url('/fonts/HelveticaNeue.ttf')
+}
+
+body {
+  font-family: lcwFont !important;
+  font-size: 105% !important;
+  margin-left: 10px !important;
+  margin-right: 10px !important;
+}
+
+.layout-width {
+	transition: .6s;
+}
+
+.fullWidth {
+	width: 100% !important;
+	max-width: 100% !important;
+}
+
+.dataTables_info {
+  padding-top: 5px !important;
+}
+
+.ui.toggle.checkbox input:checked ~ label:before {
+  background-color: #3cb9b1 !important;
+}
+
+.ui.toggle.checkbox input:checked ~ label:before {
+  background-color: #3cb9b1 !important;
+}
+
+.ui.toggle.checkbox input:focus:checked ~ label:before {
+  background-color: #3cb9b1 !important;
+}
+
+/* Github heatmaps --------------------------------------------------------- */
+.day {
+  fill: #fff;
+  stroke: #ddd;
+}
+
+.month {
+  fill: none;
+  stroke: #000;
+  stroke-width: 2px;
+}
+
+.day-label {
+  fill: #aaa !important;
+  font: 12px sans-serif;
+}
+
+.tick text {
+  fill: #aaa;
+  font: 12px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #ccc;
+  shape-rendering: crispEdges;
+}
+
+div.tooltip {
+  position: absolute;
+  text-align: center;
+  width: 150px;
+  height: 48px;
+  padding: 2px;
+  font-size: 14px;
+  color: white !important;
+  background: teal;
+  border: 0px;
+  border-radius: 8px;
+  pointer-events: none;
+}

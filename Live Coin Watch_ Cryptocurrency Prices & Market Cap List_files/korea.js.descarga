@@ -1,0 +1,50 @@
+
+var noKorea = $.cookie('noKorea') == 1;
+
+$(document).ready(function() {
+
+  // Set initial value of Include Korean Exchanges toggle
+  $('input#korea').attr('checked', !noKorea);
+  $('label#korea').html(noKorea ? 'Off' : 'On');
+
+  // Attach click handler to Korea toggle
+  $('input#korea').change(function() {
+    setKoreaToggle(!$('input#korea').prop('checked'));
+  });
+
+  // Attach click handler to Don't show this again
+  $('input#korearemember').change(function() {
+    if ($('input#korearemember').prop('checked'))
+      $.cookie('korearemember', 1, { path: '/', expires: 365 });
+    else $.removeCookie('korearemember');
+  });
+
+  // On Include Korean Exchanes toggle
+  function setKoreaToggle(nok) {
+    if (nok) showDisclaimer();
+    noKorea = nok;
+
+    // Update label to show On/Off
+    $('label#korea').html(noKorea ? 'Off' : 'On');
+
+    // Update cookies
+    if (nok) $.cookie('noKorea', 1, { path: '/', expires: 365 });
+    else $.removeCookie('noKorea');
+
+    // Update totals and table
+    onUpdateComplete();
+    table.draw('page');
+  }
+
+  // Open disclaimer modal if user did not ask for it to be remembered
+  function showDisclaimer() {
+    if ($.cookie('korearemember') == 1) return;
+    $('#koreaModal').modal('show');
+  }
+
+  // Close disclaimer modals
+  $('#koreaModalDone').click(function() {
+    $('#koreaModal').modal('hide');
+  });
+
+});

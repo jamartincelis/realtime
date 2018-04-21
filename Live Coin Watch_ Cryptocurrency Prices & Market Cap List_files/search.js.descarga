@@ -1,0 +1,56 @@
+var coins;
+
+$(document).ready(function() {
+
+  $.ajax({
+    url: '/api/allCoins',
+    success: function(result) {
+      coins = result;
+
+      // // Set the search source
+      // $('.ui.search#topSearch').search({
+      //   source: coins,
+      //   searchFullText: false,
+      //   selectFirstResult: true,
+      //   onSelect: function(result, response) {
+      //     onSubmit(result.title.toLowerCase());
+      //   }
+      // });
+
+      // Set the search source
+      $('.ui.search.search-coins').search({
+        source: coins,
+        searchFullText: false,
+        selectFirstResult: true,
+        onSelect: function(result, response) {
+          onSubmit(this, result.title.toLowerCase());
+        }
+      });
+
+      // Intercept the form submission to direct to the right coin page
+      // This workaround removes the trailing '?' from the GET request
+      $('form#topSearch').submit(function(e) {
+        var title = $('input#topSearch').val().toLowerCase();
+        var uri = coins.find((e) => {
+          return e.title.toLowerCase() === title;
+        }).uri;
+        $(this).attr('action', '/price/' + uri);
+        window.location = this.action;
+        return false;
+      });
+
+      // Submit on selection (either clicking dropdown or highlighting and enter)
+      function onSubmit(element, title) {;
+        if ($(element).attr('id') != 'topSearch') return $(element).submit();
+        console.log(title);
+        var uri = coins.find((e) => {
+          return e.title.toLowerCase() === title;
+        }).uri;
+        $(this).attr('action', '/price/' + uri);
+        window.location = this.action;
+      }
+
+    }
+  });
+
+});

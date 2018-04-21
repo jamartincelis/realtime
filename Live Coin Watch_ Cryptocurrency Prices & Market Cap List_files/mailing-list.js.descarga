@@ -1,0 +1,62 @@
+$(document).ready(function() {
+
+  var btn   = $('#mailingSubmit');
+  var input = $('#mailingInput');
+
+  // --------------------------------------------------------------------------
+  // Submit email on button click
+  // --------------------------------------------------------------------------
+  btn.click(function() {
+
+    if (isLoading()) return false;
+
+    setButton(true);
+
+    console.log(input.val());
+
+    $.ajax({
+      method  : 'POST',
+      url     : '/submitEmail',
+      data    : { data: input.val() },
+      success : function(result) {
+        displayConfirmation();
+        setButton(false);
+      },
+      error   : function(xhr, status, error) {
+        displayError();
+        setButton(false);
+      }
+    });
+
+    function setButton(loading) {
+      if (loading) btn.addClass('loading');
+      else btn.removeClass('loading');
+    }
+
+    function isLoading() {
+      return btn.hasClass('loading');
+    }
+
+  });
+
+  // --------------------------------------------------------------------------
+  // Display confirmation on success
+  // --------------------------------------------------------------------------
+  function displayConfirmation() {
+
+    btn.html('Success!');
+    btn.off('click');
+
+  }
+
+  // --------------------------------------------------------------------------
+  // Display error modal on failure
+  // --------------------------------------------------------------------------
+  function displayError() {
+
+    btn.html('Try Again');
+
+  }
+
+
+});

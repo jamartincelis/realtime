@@ -1,0 +1,61 @@
+// ----------------------------------------------------------------------------
+// Fetches the newest article from news.livecoinwatch.com and displays the
+// title, image, and date in a sticky.
+// The sticky is fixed to the bottom-right corner, clicking the div opens
+// the article in a new tab, clicking the close button hides the sticky
+// until the next new article is posted (via cookies).
+//
+// Author: Danny Buonocore
+// ----------------------------------------------------------------------------
+
+$(document).ready(function() {
+
+  fetchArticle();
+
+  // --------------------------------------------------------------------------
+  // Fetch newest article
+  // --------------------------------------------------------------------------
+  function fetchArticle() {
+
+    $.ajax({
+      method  : 'GET',
+      url     : '/newestPost',
+      success : renderSticky
+    });
+
+  }
+
+  // --------------------------------------------------------------------------
+  // Render sticky
+  // --------------------------------------------------------------------------
+  function renderSticky(json) {
+
+    if ($.cookie('seenNews') !== json.date) {
+
+      let months  = 'Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec'.split(',');
+      let date    = /(.+?\d+\s*\d+)/.exec((new Date(json.date)).toString())[1];
+
+      let $sticky = $('#newsSticky');
+      let $image  = $('#newsImage');
+      let $link   = $('#newsImageLink');
+      let $title  = $('#newsTitle');
+      let $date   = $('#newsDate');
+
+      $sticky.css('display', 'block');
+      $image.attr('src', json.img);
+      $link.attr('href', json.url);
+      $title.attr('href', json.url);
+      $title.html(json.title);
+      $date.html(date);
+
+      $('#closeSticky').click(function() {
+        $('#newsSticky').css('display', 'none');
+        $.cookie('seenNews', json.date, { path: '/', expires: 365 });
+        return false;
+      });
+
+    }
+
+  }
+
+});

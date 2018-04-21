@@ -1,0 +1,52 @@
+$(document).ready(function() {
+
+  // Layout Modal -------------------------------------------------------------
+  $('#btnLayout').click(function() {
+    $('#layoutModal').modal('show');
+  });
+
+  $('#layoutModalDone').click(function() {
+    $('#layoutModal').modal('hide');
+  });
+
+  // Format Modal -------------------------------------------------------------
+  $('#formatModal').modal({
+    onHide: onFormatSave,
+    onApprove: onFormatSave
+  });
+
+  $('#btnFormat').click(function() {
+    $('#formatModal').modal('show');
+  });
+
+  $('#formatModalDone').click(function() {
+    $('#formatModal').modal('hide');
+  });
+
+  // Filters Modal ------------------------------------------------------------
+  $('#filtersModal').modal({
+    onHide: onFilterSave,
+    onApprove: onFilterSave
+  });
+
+  $('#btnFilters').click(function() {
+    $('#filtersModal').modal('show');
+  });
+
+  $('#resetFilters').click(function() {
+    $('.ui.dropdown.filters').dropdown('restore default text');
+    $('input.numeric').val('');
+  });
+
+  $('#filtersModalDone').click(function() {
+    $('#filtersModal').modal('hide');
+  });
+
+  $('.ui.dropdown.filters').dropdown();
+
+  $('.numeric').keyup(function(e) {
+    var temp = this.value.replace(/[^0-9\.-]/g,'');
+    this.value = temp.substring(0, 1) + temp.substring(1).replace(/-/g, '');
+  });
+
+});

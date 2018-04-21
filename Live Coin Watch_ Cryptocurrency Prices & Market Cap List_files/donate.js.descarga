@@ -1,0 +1,7 @@
+$(document).ready(function() {
+
+  $('#donate').click(function() {
+    $('.ui.basic.modal').modal('show');
+  });
+
+});

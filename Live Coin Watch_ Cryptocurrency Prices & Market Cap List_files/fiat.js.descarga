@@ -1,0 +1,234 @@
+// ----------------------------------------------------------------------------
+// Controls the site-wide fiat conversion as per specified in menu bar.
+// Fiat conversions are taken directly from the API.
+// Cryptocurrency conversions are first converted to USD, then multiplied
+// by the currency's USD value.
+// This module also includes all the scripts for prices formatting.
+//
+// Author: Danny Buonocore
+// ----------------------------------------------------------------------------
+var oldFiat = 'USD';
+var fiat = 'USD';
+var toUSD = 1;
+var toBTC, toETH;
+
+// All-time highs currently only work for fiat currencies, so when switching
+// to BTC or ETH, we must keep track of the last actual fiat currency and
+// its conversion rate to USD.
+var lastFiat = 'USD';
+var lastUSD = 1;
+
+var abrCap = false;//$.cookie('abrCap');
+var abrVol = false;//$.cookie('abrVol');
+
+var fiatList = 'AUD,BGN,BRL,CAD,CHF,CNY,CZK,DKK,EUR,GBP,HRK,HUF,IDR,ILS,INR,JPY,KRW,MXN,MYR,NOK,NZD,PHP,PLN,RON,RUB,SEK,SGD,THB,TRY,USD,ZAR'.split(',');
+
+// Attach change handler to fiat dropdown in menu bar
+$(document).ready(function() {
+  // $('span#fiat').text();
+  $('.ui.dropdown#fiat').dropdown({ onChange: function() {
+    oldFiat = fiat;
+    if (fiatList.includes(oldFiat)) lastFiat = oldFiat;
+    fiat = $('.ui.dropdown#fiat').dropdown('get value').toUpperCase();
+    onFiatChange();
+  }});
+  if (typeof $.cookie('fiat') != 'undefined' && $.cookie('fiat') != '' && $.cookie('fiat') != 'USD') {
+    oldFiat = fiat;
+    if (fiatList.includes(oldFiat)) lastFiat = oldFiat;
+    fiat = $.cookie('fiat');
+    onFiatChange();
+  }
+});
+
+function updateConversions(usd) {
+  if (fiat == 'BTC') {
+    // toUSD *= toBTC;
+    // toUSD /= usd;
+    toUSD = 1 / usd;
+    toBTC = usd;
+  } else if (fiat == 'ETH') {
+    // toUSD *= toETH;
+    // toUSD /= usd;
+    toUSD = 1 / usd;
+    toETH = usd;
+  }
+}
+
+// Obtain the exchange rate to apply to price fields --------------------------
+function onFiatChange() {
+  $.ajax({
+    method: 'GET',
+    url: '/api/convertFiat/' + oldFiat + '/' + lastFiat + '/' + fiat,
+    dataType: 'json',
+    success: function(json) {
+      var conversion = json.conversion;
+
+      if (oldFiat === 'BTC') conversion *= toBTC;
+      else if (oldFiat === 'ETH') conversion *= toETH;
+
+      toUSD = json.usd;
+      toBTC = json.btc;
+      toETH = json.eth;
+
+      if (fiat != 'BTC' && fiat != 'ETH') lastUSD = toUSD;
+
+      if (fiat === 'BTC') conversion /= toBTC;
+      else if (fiat === 'ETH') conversion /= toETH;
+
+      $.each($('.price'), function(index, value) {
+        convertFiat($(value), conversion);
+      });
+
+      if (fiat != 'BTC' && fiat != 'ETH') {
+        lastToUSD = toUSD;
+        $.each($('.price-fiat'), function(index, value) {
+          convertFiat($(value), json.conversion2);
+        });
+      }
+
+      if (fiat === 'BTC') toUSD /= toBTC;
+      else if (fiat === 'ETH') toUSD /= toETH;
+
+      if ($('.priceChart').length > 0) convertChart(json.conversion);
+
+      $('span#fiat').text(fiat);
+      $.cookie('fiat', fiat, { path: '/' });
+
+      try {
+        if ($.isFunction(setQuoteQE)) setQuoteQE();
+      } catch (err) {}
+    }
+  });
+
+  try {
+    if (chartData)
+      setChartBase();
+  } catch(err) {}
+}
+
+// Intercept price changes to apply fiat exchange rate ------------------------
+function getPriceConversion(code, usd) {
+  if (fiat == 'BTC' && code == 'BTC') return '₿1.00000000';
+  else if (fiat == 'ETH' && code == 'ETH') return 'Ξ1.00000000';
+  else return getConversion(usd);
+}
+
+function getFiatPriceConversion(usd) {
+  if (fiat == 'BTC' || fiat == 'ETH') return '$' + formatRawPrice(usd);
+  else return getConversion(usd);
+}
+
+function getConversion(usd) {
+  return formatPrice(parseValue(usd) * toUSD);
+}
+
+function getRawConversion(usd) {
+  return parseValue(usd) * toUSD;
+}
+
+function convertFromUSD(field, code = 'USD') {
+  if (fiat == 'BTC' && code == 'BTC') return field.html('₿1.00000000');
+  if (fiat == 'ETH' && code == 'ETH') return field.html('Ξ1.00000000');
+  convertFiat(field, toUSD);
+}
+
+function convertFiatFromUSD(field) {
+  convertFiat(field, lastUSD);
+  var f = fiat == 'BTC' || fiat == 'ETH' ? lastFiat : fiat;
+  field.html(getCurrency(f) + field.html().substring(getCurrency(fiat).length));
+}
+
+function convertFiat(field, conversion) {
+  var html = field.html();
+  var value = parseValue(html) * conversion;
+  field.html(formatPrice(value));
+}
+
+function parseValue(value) {
+  if (typeof value != 'string') return value;
+  if (value.includes('.')) return value.replace(/[^0-9.]/g, '');
+  else return value.replace(/\D/g, '');
+}
+
+function formatPrice(value) {
+  value = parseFloat(value);
+  if (value >= 10000) value = ('' + Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  else if (value >= 1000) value = ('' + value).trim().substring(0, 1) + ',' + ('' + value.toFixed(2)).substring(1);
+  else if (value >= 1.01) value = value.toFixed(2);
+  else if (fiat == 'BTC' || fiat == 'ETH') value = value.toFixed(8);
+  else value = value.toFixed(4);
+  return getCurrency() + value;
+}
+
+function formatRawPrice(value) {
+  value = parseFloat(value);
+  if (value >= 10000) value = ('' + Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  else if (value >= 1000) value = ('' + value).trim().substring(0, 1) + ',' + ('' + value.toFixed(2)).substring(1);
+  else if (value >= 1.01) value = value.toFixed(2);
+  else value = value.toFixed(4);
+  return value;
+}
+
+function formatCryptoPrice(value, base, code) {
+  if (base == 'BTC')
+    return code == 'BTC' ? '₿1.00000000' : '₿' + value.toFixed(8);
+  if (base == 'ETH')
+    return code == 'ETH' ? 'Ξ1.00000000' : 'Ξ' + value.toFixed(8);
+  return value;
+}
+
+function getCurrency(f = null) {
+  if (f == null) f = fiat;
+  if (f == 'BTC') return '₿';
+  if (f == 'ETH') return 'Ξ';
+  if (f == 'AUD') return 'AU$';
+  if (f == 'BRL') return 'R$';
+  if (f == 'CAD') return 'C$';
+  if (f == 'CHF') return 'Fr';
+  if (f == 'CNY') return '¥';
+  if (f == 'CZK') return 'K';
+  if (f == 'DKK' || f == 'NOK' || f == 'SEK') return 'kr';
+  if (f == 'EUR') return '€';
+  if (f == 'GBP') return '£';
+  if (f == 'HKD') return 'HK$';
+  if (f == 'HUF') return 'Ft';
+  if (f == 'IDR') return 'Rp';
+  if (f == 'ILS') return '₪';
+  if (f == 'INR') return '₹';
+  if (f == 'JPY') return '¥';
+  if (f == 'KRW') return '₩';
+  if (f == 'MYR') return 'RM';
+  if (f == 'PHP') return '₱';
+  if (f == 'PKR') return 'Rs';
+  if (f == 'PLN') return 'zł';
+  if (f == 'RUB') return '₽';
+  if (f == 'SGD') return 'S$';
+  if (f == 'THB') return '฿';
+  if (f == 'TRY') return '₺';
+  if (f == 'TWD') return 'NT$';
+  if (f == 'ZAR') return 'R';
+  return '$';
+}
+
+// Price formatting -----------------------------------------------------------
+function formatCap(value) {
+  value = Math.floor(getRawConversion(value));
+  if (abrCap)
+    return getCurrency() + formatAbr(value);
+  else return formatPrice(value);
+}
+
+function formatVol(value) {
+  return abrVol ? formatAbr(value) : formatCommas(value);
+}
+
+const B = 1000000000;
+const M = 1000000;
+function formatAbr(value) {
+  if (value >= 100 * M) return (value / B).toFixed(2);
+  return formatCommas(value);
+}
+
+function formatCommas(value) {
+  return ('' + value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}

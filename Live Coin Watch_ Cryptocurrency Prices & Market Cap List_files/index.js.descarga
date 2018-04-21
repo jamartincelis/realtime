@@ -1,0 +1,810 @@
+var table;
+
+// Filter cookies
+var top100 = false;
+var filters = [];
+
+// Format cookies
+var indexFormatCap = false;
+var indexFormatVol = false;
+
+var totalCap, totalCapNok;
+var totalVol, totalVolNok;
+var btcDom, btcDomNok;
+
+var btcPrice, btcPriceLast;
+var ethPrice, ethPriceLast;
+
+// Reset version-breaking cookies
+if ($.cookie('v') != '1') {
+  var cookies = $.cookie();
+  for (var cookie in cookies)
+     $.removeCookie(cookie);
+  $.cookie('v', '1', { path: '/', expires: 365 });
+}
+
+$(document).ready(function() {
+
+  var pinning = false;
+
+  $('#popup').popup();
+
+  $('th').hover(function() {
+    $(this).css('cursor','pointer');
+  });
+
+  // Obtain BTC and ETH rates from DOM
+  btcPrice = { all: $('#btcPriceOnLoad').val(), nok: $('#btcPriceNokOnLoad').val() };
+  ethPrice = { all: $('#ethPriceOnLoad').val(), nok: $('#ethPriceNokOnLoad').val() };
+  btcPriceLast = { all: $('#btcPriceOnLoad').val(), nok: $('#btcPriceNokOnLoad').val() };
+  ethPriceLast = { all: $('#ethPriceOnLoad').val(), nok: $('#ethPriceNokOnLoad').val() };
+
+  // Determine which columns the user wants to see
+  var visibleCols;
+  var visibleCookie = $.cookie('indexCols');
+  if (!visibleCookie) visibleCols = 'cap,circulating,vol,hpc,dpc,wchart'.split(',');
+  else visibleCols = visibleCookie == '-' ? [] : visibleCookie.split(',');
+
+  var columns = [
+    { data: 'rank' },
+    { data: 'code' },
+    { data: 'cap', name: 'cap' },
+    { data: 'usd' },
+    { data: 'usd', name: 'btcPrice' },
+    { data: 'usd', name: 'ethPrice' },
+    { data: 'vol', name: 'vol' },
+    { data: 'circulating', name: 'circulating' },
+    { data: 'totalSup', name: 'totalSup' },
+    { data: 'change.hpc', name: 'hpc' },
+    { data: 'change.dpc', name: 'dpc' },
+    { data: 'change.wpc', name: 'wpc' },
+    { data: 'change.mpc', name: 'mpc' },
+    { data: 'change.hpc.btc', name: 'hpcBtc' },
+    { data: 'change.dpc.btc', name: 'dpcBtc' },
+    { data: 'change.wpc.btc', name: 'wpcBtc' },
+    { data: 'change.mpc.btc', name: 'mpcBtc' },
+    { data: 'change.hpc.eth', name: 'hpcEth' },
+    { data: 'change.dpc.eth', name: 'dpcEth' },
+    { data: 'change.wpc.eth', name: 'wpcEth' },
+    { data: 'change.mpc.eth', name: 'mpcEth' },
+    { data: 'ath', name: 'ath' },
+    { data: 'athp', name: 'athp' },
+    { data: 'dailyHigh', name: 'dailyHigh' },
+    { data: 'dailyLow', name: 'dailyLow' },
+    { data: 'dailySpread', name: 'dailySpread' },
+    { data: 'points7d', name: 'wchart' },
+    { data: 'points30d', name: 'mchart' },
+    { data: 'points90d', name: 'qchart' },
+    { data: 'name', visible: false }
+  ];
+
+  columns.forEach((e) => {
+    if (e.hasOwnProperty('name'))
+      e.visible = visibleCols.indexOf(e.name) != -1;
+  });
+
+  $('.togglecol').each(function(i, e) {
+    e.checked = visibleCols.indexOf(e.id) != -1;
+  });
+
+  table = $('#table').DataTable({
+    dom: 'ftpr',
+    serverSide: true,
+    deferLoading: 327,
+    deferRender: true,
+    ajax: {
+      type: 'POST',
+      contentType: 'application/json; chartset=utf-8',
+      url: '/price',
+      data: function(d) {
+        return JSON.stringify({
+          parameters: d,
+          filters: {
+            top100: top100,
+            custom: filters
+          }
+        });
+      }
+    },
+    order: [[ 0, 'asc' ]],
+    colReorder: true,
+    stateSave: true,
+    stateSaveParams: function(settings, data) {
+      delete data.search;
+      delete data.order;
+      delete data.start;
+      delete data.length;
+    },
+    sPaginationType: 'full_numbers',
+    pageLength: 50,
+    fixedHeader: true,
+    columns: columns,
+    columnDefs: [
+
+      // Rank (by market cap)
+      { render: function(data, type, row) {
+        return data;
+      }, targets: 0 },
+
+      // Code (name)
+      { render: function(data, type, row) {
+        var name = row.name.length > 12 ? row.name.substring(0, 12) + '…' : row.name;
+        return '<h4 class="ui image header"><img class="ui image" src="/images/icons32/' +
+          data.toLowerCase().trim().replace(/\s/g, '-').replace(/\//g, '') +
+          '.png"><div class="content"><a href="/price/' + row.uri + '" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + name + '</a><div class="sub header">' + data.replace('_', '') + '</div></h4>';
+      }, targets: 1 },
+
+      // Market cap
+      { render: function(data, type, row) {
+        var text = noKorea ? row.capNok : data;
+        if (indexFormatCap)
+          if (text >= 1000000000) text = formatCap((text/1000000000).toFixed(2)) + 'B';
+          else if (text >= 1000000) text = formatCap((text/1000000).toFixed(2)) + 'M';
+          else if (text >= 1000) text = formatCap((text/1000).toFixed(2)) + 'k';
+          else text = formatCap(text);
+        else text = formatCap(text);
+        return '<div id="cap" class="ui grid right aligned"><div class="price column" id="' + row.code.toLowerCase() + 'cap">' + text + '</div></div>';
+      }, targets: 2 },
+
+      // Price
+      { render: function(data, type, row) {
+        var color = row.last > row.usd ? 'crimson' : getGreen();
+        var c = row.last > row.usd ? 'down' : 'up';
+        var text = getPriceConversion(row.code, noKorea ? row.usdNok : data);
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span class="price" id="' + row.code.toLowerCase() + 'price">' + text + '</span><i id="' + row.code.toLowerCase() + 'priceArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 3 },
+
+      // BTC price
+      { render: function(data, type, row) {
+        var color = row.last > row.usd ? 'crimson' : getGreen();
+        var c = row.last > row.usd ? 'down' : 'up';
+        var usd = noKorea ? (row.usdNok / btcPrice.nok) : (data / btcPrice.all);
+        var text = formatCryptoPrice(usd, 'BTC', row.code);
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'btcPrice">' + text + '</span><i id="' + row.code.toLowerCase() + 'btcPriceArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 4 },
+
+      // ETH price
+      { render: function(data, type, row) {
+        var color = row.last > row.usd ? 'crimson' : getGreen();
+        var c = row.last > row.usd ? 'down' : 'up';
+        var usd = noKorea ? (row.usdNok / ethPrice.nok) : (data / ethPrice.all);
+        var text = formatCryptoPrice(usd, 'ETH', row.code);
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'ethPrice">' + text + '</span><i id="' + row.code.toLowerCase() + 'ethPriceArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 5 },
+
+      // Volume
+      { render: function(data, type, row) {
+        var text = noKorea ? row.volNok : data;
+        if (indexFormatVol)
+          if (text >= 1000000000) text = getConversion((text/1000000000).toFixed(2)) + 'B';
+          else if (text >= 1000000) text = getConversion((text/1000000).toFixed(2)) + 'M';
+          else if (text >= 1000) text = getConversion((text/1000).toFixed(2)) + 'k';
+          else text = getConversion(text);
+        else text = getConversion(text);
+        return '<div class="ui grid right aligned"><div class="price column" id="' + row.code.toLowerCase() + 'volume">' + text + '</div></div>';
+      }, targets: 6 },
+
+      // Supply
+      { render: function(data, type, row) {
+        var text = data == 0 ? '--' : formatCommas(data);
+        return '<div class="ui grid right aligned"><div class="column" id="' + row.code.toLowerCase() + 'circulating">' + text + '</div></div>';
+      }, targets: 7 },
+
+      // Total supply
+      { render: function(data, type, row) {
+        var text = data == 0 ? '--' : formatCommas(data);
+        return '<div class="ui grid right aligned"><div class="column" id="' + row.code.toLowerCase() + 'total">' + text + '</div></div>';
+      }, targets: 8 },
+
+      // ----------------------------------------------------------------------
+      // Base percent change
+      // ----------------------------------------------------------------------
+
+      // 1h percent change
+      { render: function(data, type, row) {
+        var change = (fiat != 'BTC' && fiat != 'ETH') ? data.usd : data[fiat.toLowerCase()];
+        change = parseFloat(change) || 0;
+        var color = change < 0 ? 'crimson' : getGreen();
+        var c = change < 0 ? 'down' : 'up';
+        var text = change.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'hpc">' + text + '</span><i id="' + row.code.toLowerCase() + 'hpcArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 9 },
+
+      // 24h percent change
+      { render: function(data, type, row) {
+        var change = (fiat != 'BTC' && fiat != 'ETH') ? data.usd : data[fiat.toLowerCase()];
+        change = parseFloat(change) || 0;
+        var color = change < 0 ? 'crimson' : getGreen();
+        var c = change < 0 ? 'down' : 'up';
+        var text = change.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'dpc">' + text + '</span><i id="' + row.code.toLowerCase() + 'dpcArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 10 },
+
+      // 7d percent change
+      { render: function(data, type, row) {
+        var change = (fiat != 'BTC' && fiat != 'ETH') ? data.usd : data[fiat.toLowerCase()];
+        change = parseFloat(change) || 0;
+        console.log(fiat, change);
+        var color = change < 0 ? 'crimson' : getGreen();
+        var c = change < 0 ? 'down' : 'up';
+        var text = change.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned"><span id="' + row.code.toLowerCase() + 'wpc">' + text + '</span><i id="' + row.code.toLowerCase() + 'wpcArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 11 },
+
+      // 30d percent change
+      { render: function(data, type, row) {
+        var change = (fiat != 'BTC' && fiat != 'ETH') ? data.usd : data[fiat.toLowerCase()];
+        change = parseFloat(change) || 0;
+        var color = change < 0 ? 'crimson' : getGreen();
+        var c = change < 0 ? 'down' : 'up';
+        var text = change.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned"><span id="' + row.code.toLowerCase() + 'mpc">' + text + '</span><i id="' + row.code.toLowerCase() + 'mpcArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 12 },
+
+      // ----------------------------------------------------------------------
+      // BTC percent change
+      // ----------------------------------------------------------------------
+
+      // 1h BTC percent change
+      { render: function(data, type, row) {
+        if (!data) data = 0;
+        var color = data < 0 ? 'crimson' : getGreen();
+        var c = data < 0 ? 'down' : 'up';
+        var text = data.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'hpcBtc">' + text + '</span><i id="' + row.code.toLowerCase() + 'hpcBtcArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 13 },
+
+      // 24h BTC percent change
+      { render: function(data, type, row) {
+        if (!data) data = 0;
+        var color = data < 0 ? 'crimson' : getGreen();
+        var c = data < 0 ? 'down' : 'up';
+        var text = data.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'dpcBtc">' + text + '</span><i id="' + row.code.toLowerCase() + 'dpcBtcArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 14 },
+
+      // 7d BTC percent change
+      { render: function(data, type, row) {
+        if (!data) data = 0;
+        var color = data < 0 ? 'crimson' : getGreen();
+        var c = data < 0 ? 'down' : 'up';
+        var text = data.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'wpcBtc">' + text + '</span><i id="' + row.code.toLowerCase() + 'wpcBtcArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 15 },
+
+      // 30d BTC percent change
+      { render: function(data, type, row) {
+        if (!data) data = 0;
+        var color = data < 0 ? 'crimson' : getGreen();
+        var c = data < 0 ? 'down' : 'up';
+        var text = data.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'mpcBtc">' + text + '</span><i id="' + row.code.toLowerCase() + 'mpcBtcArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 16 },
+
+      // ----------------------------------------------------------------------
+      // ETH percent change
+      // ----------------------------------------------------------------------
+
+      // 1h ETH percent change
+      { render: function(data, type, row) {
+        if (!data) data = 0;
+        var color = data < 0 ? 'crimson' : getGreen();
+        var c = data < 0 ? 'down' : 'up';
+        var text = data.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'hpcEth">' + text + '</span><i id="' + row.code.toLowerCase() + 'hpcEthArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 17 },
+
+      // 24h ETH percent change
+      { render: function(data, type, row) {
+        if (!data) data = 0;
+        var color = data < 0 ? 'crimson' : getGreen();
+        var c = data < 0 ? 'down' : 'up';
+        var text = data.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'dpcEth">' + text + '</span><i id="' + row.code.toLowerCase() + 'dpcEthArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 18 },
+
+      // 7d ETH percent change
+      { render: function(data, type, row) {
+        if (!data) data = 0;
+        var color = data < 0 ? 'crimson' : getGreen();
+        var c = data < 0 ? 'down' : 'up';
+        var text = data.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'wpcEth">' + text + '</span><i id="' + row.code.toLowerCase() + 'wpcEthArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 19 },
+
+      // 30d ETH percent change
+      { render: function(data, type, row) {
+        if (!data) data = 0;
+        var color = data < 0 ? 'crimson' : getGreen();
+        var c = data < 0 ? 'down' : 'up';
+        var text = data.toFixed(2) + '%';
+        return '<div style="color: ' + color + ';" class="right aligned colored"><span id="' + row.code.toLowerCase() + 'mpcEth">' + text + '</span><i id="' + row.code.toLowerCase() + 'mpcEthArrow" class="' + c + ' caret icon" style="margin-left: 5px;"></div>';
+      }, targets: 20 },
+
+      // ----------------------------------------------------------------------
+      // High/Low
+      // ----------------------------------------------------------------------
+
+      // All-time high
+      { render: function(data, type, row) {
+        data = parseFloat(data);
+        var text = getFiatPriceConversion(data);
+        return '<div class="right aligned"><span class="price-fiat" id="' + row.code.toLowerCase() + 'ath">' + text + '</span></div>';
+      }, targets: 21 },
+
+      // All-time high percent
+      { render: function(data, type, row) {
+        var text = '-' + parseFloat(data).toFixed(2) + '%';
+        return '<div class="right aligned"><span id="' + row.code.toLowerCase() + 'athp">' + text + '</span></div>';
+      }, targets: 22 },
+
+      // Daily high
+      { render: function(data, type, row) {
+        data = parseFloat(data);
+        var text = getFiatPriceConversion(data);
+        return '<div class="right aligned"><span class="price-fiat" id="' + row.code.toLowerCase() + 'dailyHigh">' + text + '</span></div>';
+      }, targets: 23 },
+
+      // Daily low
+      { render: function(data, type, row) {
+        data = parseFloat(data);
+        var text = getFiatPriceConversion(data);
+        return '<div class="right aligned"><span class="price-fiat" id="' + row.code.toLowerCase() + 'dailyLow">' + text + '</span></div>';
+      }, targets: 24 },
+
+      // Daily spread
+      { render: function(data, type, row) {
+        var text = parseFloat(data).toFixed(2) + '%';
+        return '<div class="right aligned"><span id="' + row.code.toLowerCase() + 'dailySpread">' + text + '</span></div>';
+      }, targets: 25 },
+
+      // Miniplots
+      { render: function(data, type, row) {
+        var points = '';
+        if (data && data.length == 28) {
+          data.forEach((e, i) => {
+            points += (i * 12) + ',' + e + '\n';
+          });
+        }
+        return '<svg viewbox="0 0 336 100" width="116" height="35"><polyline fill="none" stroke="#3cb9b1" stroke-width="6" points="' + points + '"/></svg>';
+      }, targets: [26, 27, 28] },
+
+      // Name
+      { render: function(data, type, row) {
+        return data || false;
+      }, targets: 29 },
+
+    ],
+    createdRow: function(row, data, index) {
+      row.id = data.id;
+    },
+    initComplete: function(settings, json) {
+
+      $('#table').css('visibility', 'visible');
+      onUpdateComplete();
+
+      var socket = io.connect({
+        autoConnect: true,
+        perMessageDeflate: false,
+        randomizationFactor: 0.5,
+        reconnection: true,
+        reconnectionAttempts: 4,
+        reconnectionDelay: 3000,
+        reconnectionDelayMax: 7000,
+        timeout: 30000,
+        transports: ['websocket'],
+      });
+      socket.binaryType = 'arraybuffer';
+
+      socket.on('connect', function() {
+        console.log('Connected to main socket');
+      });
+
+      socket.on('cmsg', function(data) {
+
+        // Update the totals in the header
+        totalCap = data.totalCap;
+        totalCapNok = data.totalCapNok;
+        totalVol = data.totalVol;
+        totalVolNok = data.totalVolNok;
+        btcDom = data.btcDom;
+        btcDomNok = data.btcDomNok;
+
+        // Store previous BTC and ETH prices for text color and arrow direction
+        btcPriceLast.all = btcPrice.all;
+        btcPriceLast.nok = btcPrice.nok;
+        ethPriceLast.all = ethPrice.all;
+        ethPriceLast.nok = ethPrice.nok;
+
+        // Save new BTC and ETH prices with and without Korean markets
+        btcPrice = { all: data.btcPrice, nok: data.btcPriceNok };
+        ethPrice = { all: data.ethPrice, nok: data.ethPriceNok };
+
+        // Update BTC and ETH conversion rates
+        if (fiat == 'BTC') updateConversions(noKorea ? data.btcPriceNok : data.btcPrice);
+        else if (fiat == 'ETH') updateConversions(noKorea ? data.ethPriceNok : data.ethPrice);
+
+        // Update table with new coin values
+        data.coins.forEach((e) => { onUpdate(e); });
+
+        // Update the header to reflect overall information
+        onUpdateComplete(data.users);
+
+      });
+
+      setInterval(function() {
+        pollCounter++;
+        if (pollCounter >= pollRate) {
+          var filtered = table.rows({ 'filter': 'applied' }).nodes();
+
+          var buf = new ArrayBuffer(filtered.length * 2);
+          var bufView = new Uint16Array(buf);
+
+          for (var i = 0; i < filtered.length; i++)
+            bufView[i] = filtered[i].id;
+
+          socket.emit('coins', bufView);
+
+          pollCounter = 0;
+        }
+      }, 1000);
+
+      $('.popuplink').popup();
+
+      $('#table_paginate').appendTo($('#tfooter_paginate'));
+      $('#table_filter').appendTo($('#theader'));
+
+      // Append recently added link to footer
+      $('<a href="/recentlyAdded"><button class="ui large button"' +
+        'style="float: right;">Recently Added</button></a>'
+      ).appendTo($('#tfooter_info'));
+
+    },
+  });
+
+  // Column visibility checkboxes ---------------------------------------------
+  $('.togglecol').change(function() {
+    var column = table.column(this.id + ':name');
+    column.visible(this.checked);
+    if (this.checked) {
+      if (visibleCols.indexOf(this.id) == -1)
+        visibleCols.push(this.id);
+    } else {
+      if (visibleCols.indexOf(this.id) != -1)
+        visibleCols.splice(visibleCols.indexOf(this.id), 1);
+    }
+    var indexColsCookie = visibleCols.length > 0 ? visibleCols.join(',') : '-';
+    $.cookie('indexCols', indexColsCookie, { path: '/', expires: 365 });
+  });
+
+  // Filter checkboxes --------------------------------------------------------
+  var reload = true;//false;
+  top100 = $.cookie('filterTop100') == 1;
+  for (var i = 0; i < 7; i++) {
+    if (!(typeof $.cookie('filter' + i) === 'undefined')) {
+      reload = true;
+      filters.push(JSON.parse($.cookie('filter' + i)));
+    }
+    else filters.push({ checked: false });
+  }
+
+  if (reload) table.ajax.reload();
+
+  // Set defaults from cookies
+  $('#top100').prop('checked', top100);
+  var numFilters = top100 ? 1 : 0;
+  filters.forEach((e, i, a) => {
+    if (e.checked) numFilters++;
+    $('.ui.checkbox input#filter_' + i).prop('checked', e.checked);
+
+    if (e.hasOwnProperty('property'))
+      $('.ui.dropdown#fprop_' + i).dropdown('set value', e.property);
+
+    if (e.hasOwnProperty('condition'))
+      $('.ui.dropdown#fcond_' + i).dropdown('set value', e.condition);
+
+    if (e.hasOwnProperty('value'))
+      $('input#fval_' + i).val(e.value);
+  });
+  $('span#numFilters').html(numFilters + ' Filter' + (numFilters == 1 ? '' : 's'));
+
+  // Display nag to notify of new feature or warning
+  $('.cookie.nag').nag({
+    key: 'seenUpdate9',
+    value: true
+  });
+
+  // Format checkboxes --------------------------------------------------------
+  indexFormatCap = $.cookie('indexFormatCap') == 1;
+  indexFormatVol = $.cookie('indexFormatVol') == 1;
+
+  $('#formatCap').prop('checked', indexFormatCap);
+  $('#formatVol').prop('checked', indexFormatVol);
+
+  // Format totals in header --------------------------------------------------
+  if (fiat == 'USD') {
+    $('#totalCap').html(formatPrice($('#totalCap').html()));
+    $('#totalVol').html(formatPrice($('#totalVol').html()));
+  }
+
+});
+
+function onFormatSave() {
+
+  indexFormatCap = $('.ui.toggle input#formatCap').is(':checked');
+  indexFormatVol = $('.ui.toggle input#formatVol').is(':checked');
+
+  $.cookie('indexFormatCap', indexFormatCap ? 1 : 0, { expires: 365 });
+  $.cookie('indexFormatVol', indexFormatVol ? 1 : 0, { expires: 365 });
+
+  table.ajax.reload();
+
+}
+
+function onFilterSave() {
+
+  // Top 100 filter
+  top100 = $('.ui.toggle input#top100').is(':checked');
+  $.cookie('filterTop100', top100 ? 1 : 0, { expires: 365 });
+
+  // Custom property filters
+  var numFilters = top100 ? 1 : 0;
+  filters.forEach((e, i, a) => {
+    var checked = $('.ui.checkbox input#filter_' + i).is(':checked');
+    var property = $('.ui.dropdown#fprop_' + i).dropdown('get value');
+    var condition = $('.ui.dropdown#fcond_' + i).dropdown('get value');
+    var value = $('input#fval_' + i).val();
+    if (property && condition && value && !isNaN(value)) {
+      if (checked) numFilters++;
+      filters[i] = {
+        checked: checked,
+        property: property,
+        condition: condition,
+        value: value
+      };
+    } else filters[i] = { checked: false };
+    $.cookie('filter' + i, JSON.stringify(filters[i]), { expires: 365 });
+  });
+
+  $('span#numFilters').html(numFilters + ' Filter' + (numFilters == 1 ? '' : 's'));
+  table.ajax.reload();
+
+}
+
+function onUpdate(coin) {
+
+  // Hot fix for USDT (since it is not in Korean exchanges)
+  if (coin.code == 'USDT') {
+    coin.usdNok = coin.usd;
+    coin.volNok = coin.vol;
+    coin.capNok = coin.cap;
+  }
+
+  var usd = noKorea ? coin.usdNok : coin.usd;
+
+  // This was moved to the socket handler with built-in Korean and non-Korean
+  // values to take into account views without BTC or ETH in the update.
+  // if (coin.code == fiat) updateConversions(usd);
+
+  var tr = $('tr#' + coin.code);
+
+  // Make price arrows relative to the last front-end price, not back-end
+  var lastSeenPrice = parseValue($('#' + coin.code.toLowerCase() + 'price').html());
+  var btcLastSeenPrice = parseValue($('#' + coin.code.toLowerCase() + 'btcPrice').html());
+  var ethLastSeenPrice = parseValue($('#' + coin.code.toLowerCase() + 'ethPrice').html());
+
+  // market cap
+  var cap = noKorea ? coin.capNok : coin.cap;
+  if (indexFormatCap)
+    if (cap >= 1000000000) $('#' + coin.code.toLowerCase() + 'cap').text(('$' + (cap/1000000000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B');
+    else if (cap >= 1000000) $('#' + coin.code.toLowerCase() + 'cap').text(('$' + (cap/1000000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M');
+    else if (cap >= 1000) $('#' + coin.code.toLowerCase() + 'cap').text(('$' + (cap/1000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'k');
+    else $('#' + coin.code.toLowerCase() + 'cap').text(('$' + Math.floor(cap)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+  else $('#' + coin.code.toLowerCase() + 'cap').text(('$' + Math.floor(cap)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+
+  // supply and total supply
+  $('#' + coin.code.toLowerCase() + 'circulating').text(('' + Math.floor(coin.circulating)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+  $('#' + coin.code.toLowerCase() + 'total').text(coin.totalSup == 0 ? '--' : ('' + Math.floor(coin.totalSup)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+
+  // volume
+  var vol = noKorea ? coin.volNok : coin.vol;
+  if (indexFormatVol)
+    if (vol >= 1000000000) $('#' + coin.code.toLowerCase() + 'volume').text(('$' + (vol/1000000000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B');
+    else if (vol >= 1000000) $('#' + coin.code.toLowerCase() + 'volume').text(('$' + (vol/1000000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M');
+    else if (vol >= 1000) $('#' + coin.code.toLowerCase() + 'volume').text(('$' + (vol/1000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'k');
+    else $('#' + coin.code.toLowerCase() + 'volume').text(('$' + Math.floor(vol)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+  else $('#' + coin.code.toLowerCase() + 'volume').text(('$' + Math.floor(vol)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+
+  // price
+  var last = noKorea ? coin.lastNok : coin.last;
+  var color = last > usd ? 'crimson' : getGreen();
+  var c = last > usd ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'price').text(usd >= 1 ? ('$' + usd.toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '$' + usd.toFixed(4));
+
+  // btc price
+  var btcLast = noKorea ? (last / btcPriceLast.nok) : (last / btcPriceLast.all);
+  var btc = noKorea ? (usd / btcPrice.nok) : (usd / btcPrice.all);
+  $('#' + coin.code.toLowerCase() + 'btcPrice').text(formatCryptoPrice(btc, 'BTC', coin.code));
+
+  // eth price
+  var ethLast = noKorea ? (last / ethPriceLast.nok) : (last / ethPriceLast.all);
+  var eth = noKorea ? (usd / ethPrice.nok) : (usd / ethPrice.all);
+  $('#' + coin.code.toLowerCase() + 'ethPrice').text(formatCryptoPrice(eth, 'ETH', coin.code));
+
+  // --------------------------------------------------------------------------
+  // Base percent change
+  // --------------------------------------------------------------------------
+
+  // hpc
+  var hpc = ((fiat != 'BTC' && fiat != 'ETH') ? coin.change.hpc.usd : coin.change.hpc[fiat.toLowerCase()]) || 0;
+  color = hpc < 0 ? 'crimson' : getGreen();
+  c = hpc < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'hpc').text(hpc.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'hpc').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'hpcArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // dpc
+  var dpc = ((fiat != 'BTC' && fiat != 'ETH') ? coin.change.dpc.usd : coin.change.dpc[fiat.toLowerCase()]) || 0;
+  color = dpc < 0 ? 'crimson' : getGreen();
+  c = dpc < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'dpc').text(dpc.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'dpc').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'dpcArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // wpc
+  var wpc = ((fiat != 'BTC' && fiat != 'ETH') ? coin.change.wpc.usd : coin.change.wpc[fiat.toLowerCase()]) || 0;
+  color = wpc < 0 ? 'crimson' : getGreen();
+  c = wpc < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'wpc').text(wpc.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'wpc').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'wpcArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // mpc
+  var mpc = ((fiat != 'BTC' && fiat != 'ETH') ? coin.change.mpc.usd : coin.change.mpc[fiat.toLowerCase()]) || 0;
+  color = mpc < 0 ? 'crimson' : getGreen();
+  c = mpc < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'mpc').text(mpc.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'mpc').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'mpcArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // --------------------------------------------------------------------------
+  // BTC percent change
+  // --------------------------------------------------------------------------
+
+  // hpc
+  var hpcBtc = coin.change.hpc.btc;
+  color = hpcBtc < 0 ? 'crimson' : getGreen();
+  c = hpcBtc < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'hpcBtc').text(hpcBtc.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'hpcBtc').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'hpcBtcArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // dpc
+  var dpcBtc = coin.change.dpc.btc;
+  color = dpcBtc < 0 ? 'crimson' : getGreen();
+  c = dpcBtc < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'dpcBtc').text(dpcBtc.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'dpcBtc').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'dpcBtcArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // wpc
+  var wpcBtc = coin.change.wpc.btc;
+  color = wpcBtc < 0 ? 'crimson' : getGreen();
+  c = wpcBtc < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'wpcBtc').text(wpcBtc.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'wpcBtc').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'wpcBtcArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // mpc
+  var mpcBtc = coin.change.mpc.btc;
+  color = mpcBtc < 0 ? 'crimson' : getGreen();
+  c = mpcBtc < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'mpcBtc').text(mpcBtc.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'mpcBtc').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'mpcBtcArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // --------------------------------------------------------------------------
+  // ETH percent change
+  // --------------------------------------------------------------------------
+
+  // hpc
+  var hpcEth = coin.change.hpc.eth;
+  color = hpcEth < 0 ? 'crimson' : getGreen();
+  c = hpcEth < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'hpcEth').text(hpcEth.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'hpcEth').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'hpcEthArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // dpc
+  var dpcEth = coin.change.dpc.eth;
+  color = dpcEth < 0 ? 'crimson' : getGreen();
+  c = dpcEth < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'dpcEth').text(dpcEth.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'dpcEth').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'dpcEthArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // wpc
+  var wpcEth = coin.change.wpc.eth;
+  color = wpcEth < 0 ? 'crimson' : getGreen();
+  c = wpcEth < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'wpcEth').text(wpcEth.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'wpcEth').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'wpcEthArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // mpc
+  var mpcEth = coin.change.mpc.eth;
+  color = mpcEth < 0 ? 'crimson' : getGreen();
+  c = mpcEth < 0 ? 'down' : 'up';
+  $('#' + coin.code.toLowerCase() + 'mpcEth').text(mpcEth.toFixed(2) + '%');
+  $('#' + coin.code.toLowerCase() + 'mpcEth').parent().css('color', color);
+  $('#' + coin.code.toLowerCase() + 'mpcEthArrow').removeClass('down').removeClass('up').addClass(c);
+
+  // --------------------------------------------------------------------------
+  // High/Low
+  // --------------------------------------------------------------------------
+
+  // ath/athp
+  var ath = coin.ath;
+  $('#' + coin.code.toLowerCase() + 'ath').text(ath >= 1 ? ('$' + ath.toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '$' + ath.toFixed(4));
+  $('#' + coin.code.toLowerCase() + 'athp').text('-' + coin.athp.toFixed(2) + '%');
+
+  // daily high/low/spread
+  var dailyHigh = coin.dailyHigh;
+  var dailyLow = coin.dailyLow;
+  $('#' + coin.code.toLowerCase() + 'dailyHigh').text(dailyHigh >= 1 ? ('$' + dailyHigh.toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '$' + dailyHigh.toFixed(4));
+  $('#' + coin.code.toLowerCase() + 'dailyLow').text(dailyLow >= 1 ? ('$' + dailyLow.toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '$' + dailyLow.toFixed(4));
+  $('#' + coin.code.toLowerCase() + 'dailySpread').text(coin.dailySpread.toFixed(2) + '%');
+
+  // display in proper fiat
+  if (fiat != 'USD') {
+    convertFromUSD($('#' + coin.code.toLowerCase() + 'cap'));
+    convertFromUSD($('#' + coin.code.toLowerCase() + 'volume'));
+    convertFromUSD($('#' + coin.code.toLowerCase() + 'price'), coin.code);
+    try {
+      convertFiatFromUSD($('#' + coin.code.toLowerCase() + 'ath'));
+      convertFiatFromUSD($('#' + coin.code.toLowerCase() + 'dailyHigh'));
+      convertFiatFromUSD($('#' + coin.code.toLowerCase() + 'dailyLow'));
+    } catch (err) {}
+  }
+
+  // Apply arrow styles for prices
+  $('#' + coin.code.toLowerCase() + 'price').parent().css('color', lastSeenPrice > usd ? 'crimson' : getGreen());
+  $('#' + coin.code.toLowerCase() + 'btcPrice').parent().css('color', btcLastSeenPrice > btc ? 'crimson' : getGreen());
+  $('#' + coin.code.toLowerCase() + 'ethPrice').parent().css('color', ethLastSeenPrice > eth ? 'crimson' : getGreen());
+  $('#' + coin.code.toLowerCase() + 'priceArrow').removeClass('down').removeClass('up').addClass(lastSeenPrice > usd ? 'down' : 'up');
+  $('#' + coin.code.toLowerCase() + 'btcPriceArrow').removeClass('down').removeClass('up').addClass(btcLastSeenPrice > btc ? 'down' : 'up');
+  $('#' + coin.code.toLowerCase() + 'ethPriceArrow').removeClass('down').removeClass('up').addClass(ethLastSeenPrice > eth ? 'down' : 'up');
+
+}
+
+function onUpdateComplete(users = null, online = null) {
+  var cap = noKorea ? totalCapNok : totalCap;
+  var dom = noKorea ? btcDomNok : btcDom;
+  var vol = noKorea ? totalVolNok : totalVol;
+  if (cap)
+    if (indexFormatCap)
+      if (cap >= 1000000000) $('#totalCap').html(('$' + (cap/1000000000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B');
+      else if (cap >= 1000000) $('#totalCap').html(('$' + (cap/1000000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M');
+      else if (cap >= 1000) $('#totalCap').html(('$' + (cap/1000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'k');
+      else $('#totalCap').html(('$' + Math.floor(cap)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+    else $('#totalCap').html(('$' + Math.floor(cap)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+  //if (cap) $('#totalCap').html(('$' + Math.floor(cap)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+
+  if (vol)
+    if (indexFormatVol)
+      if (vol >= 1000000000) $('#totalVol').html(('$' + (vol/1000000000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B');
+      else if (vol >= 1000000) $('#totalVol').html(('$' + (vol/1000000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M');
+      else if (vol >= 1000) $('#totalVol').html(('$' + (vol/1000).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'k');
+      else $('#totalVol').html(('$' + Math.floor(vol)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+    else $('#totalVol').html(('$' + Math.floor(vol)).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+
+  if (dom) $('#btcDom').html(dom + '%');
+
+  if (fiat != 'USD') {
+    convertFromUSD($('#totalCap'));
+    convertFromUSD($('#totalVol'));
+  }
+
+  // $('#numOnline').html(online);
+  if (users) $('#numAccounts').html(users.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+}

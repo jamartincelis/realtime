@@ -1,0 +1,28 @@
+// ----------------------------------------------------------------------------
+// Controls the site-wide fiat conversion as per specified in menu bar.
+// Fiat conversions are taken directly from the API.
+// Cryptocurrency conversions are first converted to USD, then multiplied
+// by the currency's USD value.
+// This module also includes all the scripts for prices formatting.
+//
+// Author: Danny Buonocore
+// ----------------------------------------------------------------------------
+
+
+var pollCounter = 60,
+    pollRate = 2;
+
+// Attach change handler to fiat dropdown in menu bar
+$(document).ready(function() {
+
+  $('.ui.dropdown#poll').dropdown({ onChange: function() {
+    pollRate = $('.ui.dropdown#poll').dropdown('get value').split(' ')[0];
+    $('span#poll').text(pollRate + ' sec');
+    $.cookie('poll', pollRate, { path: '/' });
+  }});
+
+  if (typeof $.cookie('poll') != 'undefined' && $.cookie('poll') != '')
+    pollRate = $.cookie('poll');
+  $('span#poll').text(pollRate + ' sec');
+
+});

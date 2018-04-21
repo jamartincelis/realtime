@@ -1,0 +1,144 @@
+var darkStyle = darkStyle = $('link[rel="stylesheet"]#darkTheme')[0];
+
+// NOTE: This is now done server-side
+// if ($.cookie('darktheme') == 1)
+//   $(darkStyle).removeAttr('disabled');
+
+// Default to light theme (Firefox workaround)
+if ($(darkStyle).attr('disabled') == 'disabled')
+  $(darkStyle).prop('disabled', 'disabled');
+
+$(document).ready(function() {
+
+  setThemeToggle();
+  setThemeText();
+
+  // Attach handler to Lights toggle
+  $('input#theme').change(function() {
+    setGreen();
+    setStyle();
+    setChartVolColor();
+    setExchangeChartColor();
+    setFiatChartColor();
+    setLogoSource();
+    setThemeText();
+    setThemeDimmer();
+  });
+
+  // Toggle the dark theme stylesheet
+  function setStyle() {
+    if (lightsOn()) {
+      $(darkStyle).removeAttr('disabled');
+      $.cookie('darktheme', 1, { path: '/', expires: 365 });
+    } else {
+      $(darkStyle).attr('disabled', 'disabled');
+      $(darkStyle).prop('disabled', 'true');
+      $.removeCookie('darktheme', { path: '/' });
+    }
+  }
+
+  // Modify the green text to contrast with the background
+  function setGreen() {
+    if (lightsOn()) {
+      $('.colored').each(function(i) {
+        if ($(this).css('color') == 'rgb(0, 128, 0)')
+          $(this).css('color', 'rgb(154, 205, 50)');
+      });
+    } else {
+      $('.colored').each(function(i) {
+        if ($(this).css('color') == 'rgb(154, 205, 50)')
+          $(this).css('color', 'rgb(0, 128, 0)');
+      });
+    }
+  }
+
+  function setLogoSource() {
+    if (lightsOn()) {
+      $('img#logo').attr('src', '/images/logos/logo-light-beta.svg');
+      if ($('img#korea')) $('img#korea').attr('src', '/images/kr-light.png');
+    } else {
+      $('img#logo').attr('src', '/images/logos/logo-dark-beta.svg');
+      if ($('img#korea')) $('img#korea').attr('src', '/images/kr-dark.png');
+    }
+  }
+
+  function setThemeToggle() {
+    if (lightsOn()) {
+      $('#theme').prop('checked', true);
+    } else {
+      $('#theme').prop('checked', false);
+    }
+  }
+
+  function setThemeText() {
+    if (lightsOn()) {
+      $('#themeLabel').html('Day Theme');
+    } else {
+      $('#themeLabel').html('Night Theme');
+    }
+  }
+
+  function setThemeDimmer() {
+    if (lightsOn()) {
+      if ($('#loading')) $('#loading').addClass('inverted');
+    } else {
+      if ($('#loading')) $('#loading').removeClass('inverted');
+    }
+  }
+
+  // Attach handler to Fullscreen toggle
+  $('#fullscreen').change(function() {
+    var fullWidth = $('#fullscreen').is(":checked");
+    if (fullWidth) {
+      $('.layout-width').addClass('fullWidth');
+    } else {
+      $('.layout-width').removeClass('fullWidth');
+    }
+    $.cookie('fullWidth', fullWidth ? 1 : 0, { path: '/', expires: 365 });
+
+    // Update tiles in market
+    if (typeof(marketTiles) != 'undefined' && marketTiles) {
+      setTimeout(function() {
+        try {
+          resize();
+        } catch (err) {}
+      }, 500);
+    }
+
+  });
+
+});
+
+// Exposed Functionality ------------------------------------------------------
+function lightsOn() {
+  return $(darkStyle).attr('disabled') == 'disabled';
+}
+
+function getGreen() {
+  return lightsOn() ? 'green' : 'yellowgreen';
+}
+
+function getChartVolColor() {
+  return lightsOn() ? 'rgba(128, 128, 128, 0.4)' : 'rgba(0, 0, 0, 0.8)';
+}
+
+// Modify the color of the volume chart on the coin page
+function setChartVolColor() {
+  if (typeof(chart) != 'undefined' && chart) {
+    chart.data.datasets[1].backgroundColor = getChartVolColor();
+    chart.data.datasets[1].borderColor = getChartVolColor();
+    chart.update();
+  }
+}
+
+// Modify the color of the volume chart on the exchanges page
+function setExchangeChartColor() {
+  if (typeof(exchangesChart) != 'undefined' && exchangesChart)
+    updateChartTheme();
+}
+
+// Modify the color of the fiat chart on the markets page
+function setFiatChartColor() {
+  if (typeof(fiatChart) != 'undefined' && fiatChart)
+    updateChartTheme();
+}

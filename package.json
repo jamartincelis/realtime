@@ -1,0 +1,14 @@
+{
+  "name": "Realtime",
+  "version": "1.0.0",
+  "description": "Realtime functionality",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Javier Martin",
+  "license": "ISC",
+  "dependencies": {
+    "mysql": "^2.15.0"
+  }
+}

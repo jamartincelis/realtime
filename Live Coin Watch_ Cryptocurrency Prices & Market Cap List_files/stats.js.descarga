@@ -1,0 +1,13 @@
+$(document).ready(function() {
+  $.ajax({
+    type: 'GET',
+    url: '/api/stats',
+    dataType: 'json',
+    success: function(json) {
+      $('.description#numMarkets').text(json.nMarkets.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+      $('.description#numCoins').text(json.nCoins.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+      $('.description#numExchanges').text(json.nExchanges);
+      $('.description#numAccounts').text(json.nAccounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+    },
+  });
+});

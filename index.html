@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Live stock price ticker</title>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+
+    <script>
+      $(function () {
+        var socket = io();
+        
+        socket.on('coins prices update', function(coins_prices) {
+          var seed = + Math.floor(Math.random() * 1000);
+          console.log(coins_prices);
+          $('#btc').text((coins_prices.BTC + seed));
+          $('#eth').text((coins_prices.ETH + seed));
+          $('#xrp').text((coins_prices.XRP + seed));
+          $('#btccash').text((coins_prices.BCH + seed));
+          $('#eos').text((coins_prices.EOS + seed));
+        });
+
+        socket.on('updateItems',function(items){
+          console.log(items);
+        });
+
+      });
+    </script>
+
+  </head>
+  <body>
+    <table>
+    	<tr><td>Bitcoin BTC: <span id="btc"></span></td></tr>
+    	<tr><td>Ethereum ETH: <span id="eth"></span></td></tr>
+    	<tr><td>Ripple XRP: <span id="xrp"></span></td></tr>
+    	<tr><td>Bitcoin Cash BCH: <span id="btccash"></span></td></tr>
+    	<tr><td>EOS EOS: <span id="eos"></span></td></tr>
+    </table>
+  </body>
+</html>
