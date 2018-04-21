@@ -1,6 +1,0 @@
-{
-  "name": "websocket-realtime-prices",
-  "version": "0.0.1",
-  "description": "WebSocket Stock Ticker",
-  "dependencies": {}
-}
